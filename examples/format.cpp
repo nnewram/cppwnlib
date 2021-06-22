@@ -1,4 +1,5 @@
 #include "basic.hpp"
+#include "cyclic.hpp"
 #include "remote.hpp"
 #include <iostream>
 
@@ -10,13 +11,22 @@ int main() {
 	std::cout << pwn::p32(0x31323334) << std::endl;
 
 
-	pwn::remote<> r("www.google.se", 80);
+	pwn::remote<pwn::noblocking | pwn::bit64> r("www.google.se", 80);
 
-	std::cout << r.cyclic(100) << std::endl;
+	std::string s1 = r.cyclic(100);
+	std::string s2 = r.cyclic(100);
 
-	std::cout << r.cyclic(50) << std::endl;
+	std::cout << s1.length() << " "<< s1 << std::endl;
+
+	std::cout << s2.length() << " "<< s2 << std::endl;
 
 
-	std::cout << pwn::format("Abaa: {}", r.cyclic_find("Abaa")) << std::endl;
-	std::cout << pwn::format("aaBb: {}", r.cyclic_find("aaBb")) << std::endl;
+	std::cout << pwn::format("Aaaaaaaa: {}", r.cyclic_find("Aaaaaaaa")) << std::endl;
+	std::cout << pwn::format("aaBbaaaa: {}", r.cyclic_find("aaBbaaaa")) << std::endl;
+
+
+	pwn::cyclic cc(pwn::bit32);
+
+	std::cout << cc.get_sequence(100) << std::endl;
+	std::cout << cc.get_sequence(100) << std::endl;
 }

@@ -12,8 +12,10 @@
 
 namespace pwn {
 
-enum RemoteFlags {
-	nonblocking = 1
+enum RemoteFlags : std::uint64_t {
+	noblocking = 1,
+	bit32 = 4,
+	bit64 = 8
 };
 
 namespace detail {
@@ -78,7 +80,7 @@ public:
 	SocketBuffer(int sockid) : sockid(sockid), buffer("") {}
 
 	std::string read(std::size_t n = 1024) {
-		constexpr bool is_nonblocking = flags & nonblocking;
+		constexpr bool is_nonblocking = flags & noblocking;
 		if (is_nonblocking) {
 			return impl_readnb(n);
 		}
@@ -134,7 +136,7 @@ private:
 public:
 	remote() {}
 
-	remote(const std::string ip, int port) : ctx(), sb(), port(port) {
+	remote(const std::string ip, int port) : ctx(flags & (bit64 | bit32)), sb(), port(port) {
 		sockid = socket(AF_INET, SOCK_STREAM, 0);
 		if (sockid < 0) {
 			throw std::runtime_error(pwn::format("Failed to establish a socket to {}:{}", ip, port));
@@ -202,7 +204,7 @@ public:
 				break;
 			}
 
-			if ((new_part == "") && (flags & nonblocking))
+			if ((new_part == "") && (flags & noblocking))
 				break;
 			
 			buffer += new_part;
@@ -221,7 +223,7 @@ public:
 	}
 
 	void setTimeout(int milliseconds) {
-		if (!(flags & nonblocking))
+		if (!(flags & noblocking))
 			throw std::runtime_error("Only possible to set timeout on non-blocking remotes. Use pwn::nonblocking as a flag.");
 		
 		sb.set_timeout(milliseconds);
