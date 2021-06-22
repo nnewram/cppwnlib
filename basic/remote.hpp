@@ -42,7 +42,6 @@ private:
 	std::string buffer;
 
 	std::string impl_readb(std::size_t n = 1024) {
-		std::cout << "B" << std::endl;
 		if (buffer.length() < n) {
 			char *partial_buffer = static_cast<char *>(calloc(n, 1));
 			::read(sockid, partial_buffer, n - buffer.length() - 1);
@@ -232,9 +231,13 @@ public:
 		Q: why the fck is cyclic here?
 		A: this allows us to generate unique cyclic data all the time for the specific remote instance 
 	*/
-	//std::string cyclic(const std::size_t amount) {
-	//	return ctx.cyclic(amount);
-	//}
+	std::string cyclic(std::size_t amount) {
+		return ctx.cyclic(amount);
+	}
+
+	std::size_t cyclic_find(std::string pattern) {
+		return ctx.cyclic_find(pattern);
+	}
 };
 
 }

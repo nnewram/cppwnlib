@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <cmath>
 
 namespace pwn {
 
@@ -15,58 +16,135 @@ namespace detail {
 
 		return new_vec;
 	}
+
+	std::size_t roundup(std::size_t number, std::size_t multiple) {
+		return ((number + multiple - 1) / multiple) * multiple;
+	}
 }
 
 class cyclicg {
 private:
-	std::string alphabet;
-	std::size_t position;
 	std::size_t width;
-	std::vector<int> buffer;
-	std::string yielded;
+	std::vector<std::size_t> history;
 public:
-	cyclicg(std::string &&alphabet, std::size_t width) : alphabet(alphabet), position(0), width(width), buffer(alphabet.length()) {}
+	cyclicg(std::size_t width) : width(width), history({0}) {}
 
-	std::vector<int> debruijn(std::size_t amount, int t, int p) {
-		if (t > amount) {
-			return detail::between(buffer, 1, p + 1);
+	std::string get(std::size_t pos) {
+		std::string pattern("");
+		pattern.resize(width);
+
+		pattern += 'A' + pos % 26;
+		std::size_t num = pos / 26;
+		for (std::size_t i = 1; i < width; i++) {
+			pattern += 'a' + num % 26;
+			num /= 26;
 		}
 
-		buffer[t] = buffer[t - p];
-
-		std::vector<int> partial = debruijn(amount, t + 1, p);
-
-		for (std::size_t i = buffer[t - p] + 1; i < alphabet.length(); i++) {
-			buffer[t] = i;
-			std::vector<int> partial2 = debruijn(amount, t + 1, p);
-			partial.reserve(partial.size() + partial2.size());
-			partial.insert(partial.end(), partial2.begin(), partial2.end());
-		}
-
-		return partial;
+		return pattern;
 	}
 
-	std::string get(std::size_t amount) {
-		std::string buf("");
-		std::vector<int> generated = debruijn(amount, 1, 1);
-	
-		for (int a : generated) {
-			buf += 'A' + a;
+
+	// courtesy of Gabriel Ericson
+	std::size_t inverse(std::string pattern) {
+		std::size_t offset = 0;
+
+		// find the anchor uppercase letter to adjust for the offset
+		for (std::size_t i = 0; i < width; i++) {
+			if (pattern[i] < 'a') {
+				offset = i;
+				break;
+			}
 		}
 
-		return buf;
+		std::string part_lo = pattern.substr(0, offset);
+		std::string part_hi = pattern.substr(offset, pattern.length());
+
+		std::uint64_t out_lo = 0;
+		std::uint64_t out_hi = 0;
+
+		for (std::size_t i = offset - 1; i > -1; i--) {
+			out_lo = part_lo[i] - 'a' + 26 * out_lo;
+		}
+
+		bool all_a = true;
+
+		/*
+			offset 0: [a + 26b + 26²c + 26³d]
+			offset 1: [26b + 26²c + 26³d, (a+1)]
+			offset 2: [26²c + 26³d, a + 26b + 1]
+			offset 3: [26³d, a + 26b + 26²c + 1]
+		*/
+
+		for (std::size_t i = 0; i < part_hi.length(); i++) {
+			if (std::tolower(part_hi[i]) != 'a') {
+				all_a = false;
+				break;
+			}
+		}
+
+		if (offset && all_a) {
+			out_lo++;
+		}
+
+		out_lo *= std::pow(26, width - offset);
+		
+		for (std::size_t i = width - offset - 1; i > 0; i--) {
+			out_hi = part_hi[i] - 'a' + 26 * out_hi;
+		}
+
+		out_hi = part_hi[0] - 'A' + 26 * out_hi;
+
+		std::uint64_t out = out_lo + out_hi;
+
+		std::uint64_t pos = out * width - offset;
+
+		std::size_t i = 0;
+		for (; i < history.size() - 1; i++) {
+			if (pos > history[i] && pos < history[i + 1])
+				break;
+		}
+
+		return pos - history[i];
+	}
+
+	/*
+		walk the position forwards in order to generate unique numbers in the future
+		note that the inverse will take the history of positions in to account
+		to generate a relative position.
+	*/
+	void walk(std::size_t number) {
+		history.push_back(detail::roundup(history[history.size() - 1] + number, get_width()));
+	}
+
+	std::size_t get_width() const {
+		return width;
+	}
+
+	std::size_t get_pos() const {
+		return history[history.size() - 1];
 	}
 };
+
 
 class context {
 private:
 	cyclicg cyclic_context;
 	std::size_t width;
 public:
-	context() : cyclic_context("ab", 8) {}
+	context() : cyclic_context(4) {}
 
 	std::string cyclic(std::size_t amount) {
-		return cyclic_context.get(amount);
+		std::string iter("");
+		for (std::size_t i = 0; i < amount/cyclic_context.get_width(); i++) {
+			iter += cyclic_context.get(cyclic_context.get_pos()/cyclic_context.get_width() + i);
+		}
+		cyclic_context.walk(amount);
+
+		return iter;
+	}
+
+	std::size_t cyclic_find(std::string pattern) {
+		return cyclic_context.inverse(pattern);
 	}
 };
 
