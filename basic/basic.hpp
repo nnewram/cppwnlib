@@ -6,6 +6,9 @@
 #include <vector>
 #include <iostream>
 
+#include <cxxabi.h>
+#include <new>
+
 namespace pwn {
 
 namespace detail {
@@ -79,6 +82,18 @@ std::string p32(std::uint32_t value) {
 	for (char i = 0; i < 4; i++) {
 		s += static_cast<unsigned char>(value >> (8 * i) & 0xff);
 	}
+
+	return s;
+}
+
+std::string demanglecpp(std::string identifier) {
+	const char *demangled = abi::__cxa_demangle(identifier.c_str(), nullptr, nullptr, nullptr);
+
+	if (!demangled)
+		return identifier;
+	
+	std::string s(identifier);
+	free(const_cast<char *>(demangled));
 
 	return s;
 }

@@ -3,8 +3,8 @@
 int main() {
 	pwn::elf<pwn::bit32> e("a.out");
 
-	std::cout << e.get_relocations().size() << std::endl;
+	std::cout << e.get_symbols().size() << std::endl;
 
-	for (auto &a : e.get_relocations())
-		std::cout << pwn::format("relocation {} with type {}", a.symbol_name, a.get_type()) << std::endl;
+	for (auto &a : e.get_symbols())
+		std::cout << pwn::format("symbol {} with type {}", pwn::demanglecpp(a.name), a.get_type()) << std::endl;
 }

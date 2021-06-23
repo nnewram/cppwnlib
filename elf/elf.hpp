@@ -30,31 +30,6 @@ template<elfflag width>
 class symbol;
 template<elfflag width>
 class relocation;
-/*
-namespace detail {
-
-std::string get_section_type(std::size_t type);
-std::string get_segment_type(std::uint32_t segment_type);
-std::string get_segment_flags(std::uint32_t segment_flags);
-
-std::string get_symbol_type(std::uint8_t symbol_type);
-std::string get_symbol_bind(std::uint8_t symbol_bind);
-std::string get_symbol_visibility(std::uint8_t symbol_visibility);
-std::string get_symbol_index(std::size_t symbol_index);
-
-template<elfflag width>
-std::string get_relocation_type(std::uint64_t relocation_type);
-template<elfflag width>
-std::string get_relocation_value(std::uint64_t r_info, std::vector<symbol<width>> &symbols);
-template<elfflag width>
-std::string get_relocation_name(std::uint64_t r_info, std::vector<symbol<width>> &symbols);
-
-std::pair<std::uint8_t *, std::size_t> map_file(std::string path);
-bool is_elf(std::uint8_t *mapped);
-elfflag get_width(std::uint8_t *mapped);
-
-}
-*/
 
 template<elfflag width>
 using size_type = typename std::conditional<width == pwn::bit64, std::uint64_t, std::uint32_t>::type;
@@ -438,7 +413,7 @@ public:
 			case 43: rt = "R_X86_64_NUM";              break;
 			default: rt = "OTHER";
 		}
-		
+
 		return rt;
 	}
 };
