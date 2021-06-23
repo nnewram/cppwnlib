@@ -416,25 +416,29 @@ public:
 
 	size_type<width> offset;
 	size_type<width> info;
+	size_type<width> addend;
 	size_type<width> *plt_address;
 	std::string type;
 
 	size_type<width> symbol_value;
 	std::string symbol_name;
-	
 
 	std::string section_name;
 
 	relocation() {}
-	relocation(Rela_type relocation_data, size_type<width> *plt_address, std::string parent_name, std::vector<symbol<width>> &symbols):
+	relocation(Rela_type relocation_data, size_type<width> *plt_address, section<width> parent, std::vector<symbol<width>> &symbols):
 		offset(relocation_data.r_offset),
 		info(relocation_data.r_info),
 		symbol_name(detail::get_relocation_name<width>(relocation_data.r_info, symbols)),
 		symbol_value(detail::get_relocation_value<width>(relocation_data.r_info, symbols)),
 		type(detail::get_relocation_type<width>(relocation_data.r_info)),
 		plt_address(plt_address),
-		section_name(parent_name)
-	{}
+		section_name(parent.name),
+		addend(0)
+	{
+		if (parent.type == "SHT_RELA")
+			addend = relocation_data.r_addend;
+	}
 };
 
 template<elfflag width = pwn::bit64>
@@ -530,7 +534,7 @@ private:
 			
 			for (std::size_t i = 0; i < section.size / sizeof(Rela_type); i++) {
 				size_type<width> *plt_rel_address = plt_address + (i + 1) * section.ent_size;
-				relocations.emplace_back(relocation<width>(reinterpret_cast<Rela_type *>(mapped + section.offset)[i], plt_rel_address, section.name, symbols));
+				relocations.emplace_back(relocation<width>(reinterpret_cast<Rela_type *>(mapped + section.offset)[i], plt_rel_address, section, symbols));
 			}
 		}
 	}
