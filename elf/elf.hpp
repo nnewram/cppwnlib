@@ -231,7 +231,7 @@ public:
 template<elfflag width>
 class symbol {
 public:
-	using sym_type  = typename std::conditional<width == pwn::bit64, Elf64_Sym, Elf32_Sym>::type;
+	using sym_type = typename std::conditional<width == pwn::bit64, Elf64_Sym, Elf32_Sym>::type;
 
 	size_type<width> value;
 	size_type<width> size;
@@ -583,6 +583,16 @@ public:
 	std::vector<relocation<width>> get_relocations() {
 		return relocations;
 	}
+
+	symbol<width> get_symbol(std::string name) {
+		for (auto& symbol : symbols) {
+			if (symbol.name == name)
+				return symbol;
+		}
+
+		return symbol<width>();
+	}
+
 };
 
 

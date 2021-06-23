@@ -87,11 +87,20 @@ std::string p32(std::uint32_t value) {
 }
 
 std::string demanglecpp(std::string identifier) {
-	const char *demangled = abi::__cxa_demangle(identifier.c_str(), nullptr, nullptr, nullptr);
+	int status = 0;
+	const char *demangled = abi::__cxa_demangle(identifier.c_str(), nullptr, nullptr, &status);
 
-	if (demangled == nullptr)
-		return identifier;
-	
+	switch (status) {
+		case -2:
+			return identifier;
+		case -1:
+			throw std::runtime_error(pwn::format("memory error occured during demangling of {}", identifier));
+		default:
+			throw std::runtime_error(pwn::format("Unknown error when demangling {}", identifier));
+		case 0:
+			break;
+	}
+
 	std::string s("");
 
 	for (std::size_t i = 0; i < strlen(demangled); i++) {
