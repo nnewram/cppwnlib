@@ -5,9 +5,9 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <cstring>
 
 #include <cxxabi.h>
-#include <new>
 
 namespace pwn {
 
@@ -89,10 +89,18 @@ std::string p32(std::uint32_t value) {
 std::string demanglecpp(std::string identifier) {
 	const char *demangled = abi::__cxa_demangle(identifier.c_str(), nullptr, nullptr, nullptr);
 
-	if (!demangled)
+	if (demangled == nullptr)
 		return identifier;
 	
-	std::string s(identifier);
+	std::string s("");
+
+	for (std::size_t i = 0; i < strlen(demangled); i++) {
+		if ((demangled[i] == ' ') && (i > 0) && ((demangled[i - 1] == '<') || (demangled[i - 1] == '>')))
+			continue;
+		
+		s += demangled[i];
+	}
+
 	free(const_cast<char *>(demangled));
 
 	return s;

@@ -1,7 +1,7 @@
 #include "elf.hpp"
 
 int main() {
-	pwn::elf<pwn::bit32> e("a.out");
+	pwn::elf<pwn::bit64> e("a.out");
 
 	std::cout << e.get_symbols().size() << std::endl;
 
