@@ -1,6 +1,8 @@
 #pragma once
 
-#include "basic.hpp"
+#include <cppwnlib/basic/basic.hpp>
+#include <cppwnlib/basic/config.hpp>
+
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -13,30 +15,29 @@
 
 #include <elf.h>
 
+/*
+TODO:
+	1: The mmaped elf file needs to be initialized in order to be functional.
+
+*/
+
 
 namespace pwn {
-
-enum elfflag : std::size_t {
-	invalid = 0,
-	bit32 = 4,
-	bit64 = 8
-};
-
-template<elfflag width>
+template<pwnflag width>
 class section;
-template<elfflag width>
+template<pwnflag width>
 class segment;
-template<elfflag width>
+template<pwnflag width>
 class symbol;
-template<elfflag width>
+template<pwnflag width>
 class relocation;
 
-template<elfflag width>
+template<pwnflag width>
 using size_type = typename std::conditional<width == pwn::bit64, std::uint64_t, std::uint32_t>::type;
 
 namespace detail {
 
-template<elfflag width>
+template<pwnflag width>
 size_type<width> get_relocation_value(std::uint64_t r_info, std::vector<symbol<width>> &symbols) {
 	constexpr bool is_64bit = width == pwn::bit64;
 
@@ -53,7 +54,7 @@ size_type<width> get_relocation_value(std::uint64_t r_info, std::vector<symbol<w
 	return symbols[symbol_index].value;
 }
 
-template<elfflag width>
+template<pwnflag width>
 std::string get_relocation_name(std::uint64_t r_info, std::vector<symbol<width>> &symbols) {
 	constexpr bool is_64bit = width == pwn::bit64;
 
@@ -80,7 +81,7 @@ std::pair<std::uint8_t *, std::size_t> map_file(std::string path) {
 	if (fstat(fd, &st) < 0)
 		throw std::runtime_error(pwn::format("Could not stat file {}", path));
 	
-	std::uint8_t *mapped = static_cast<uint8_t *>(mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE | MAP_32BIT, fd, 0));
+	std::uint8_t *mapped = static_cast<uint8_t *>(mmap(NULL, st.st_size, PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_32BIT, fd, 0));
 
 	if (mapped == MAP_FAILED)
 		throw std::runtime_error(pwn::format("Could not mmap for file {} with size {}", path, st.st_size));
@@ -97,7 +98,7 @@ bool is_elf(std::uint8_t *mapped) {
 		mapped[3] == 'F');
 }
 
-elfflag get_width(std::uint8_t *mapped) {
+pwnflag get_width(std::uint8_t *mapped) {
 	if (mapped[4] == 2)
 		return pwn::bit64;
 	else if (mapped[4] == 1)
@@ -108,7 +109,7 @@ elfflag get_width(std::uint8_t *mapped) {
 
 }
 
-template<elfflag width>
+template<pwnflag width>
 class section {
 public:
 	using Eheader_type = typename std::conditional<width == pwn::bit64, Elf64_Ehdr, Elf32_Ehdr>::type;
@@ -126,7 +127,8 @@ public:
 	section() {}
 	section(std::size_t index, std::uint8_t *mapped, Sheader_type *shdr):
 		index(index),
-		name(std::string((reinterpret_cast<char *>(mapped) + (reinterpret_cast<Sheader_type *>(&(shdr[reinterpret_cast<Eheader_type *>(mapped)->e_shstrndx]))->sh_offset)) + shdr[index].sh_name)),
+		name(std::string(
+			(reinterpret_cast<char *>(mapped) + (reinterpret_cast<Sheader_type *>(&(shdr[reinterpret_cast<Eheader_type *>(mapped)->e_shstrndx]))->sh_offset)) + shdr[index].sh_name)),
 		type(shdr[index].sh_type),
 		offset(shdr[index].sh_offset),
 		address(reinterpret_cast<size_type<width> *>(shdr[index].sh_addr)),
@@ -157,7 +159,7 @@ public:
 	}
 };
 
-template<elfflag width>
+template<pwnflag width>
 class segment {
 public:
 	using Pheader_type = typename std::conditional<width == pwn::bit64, Elf64_Phdr, Elf32_Phdr>::type;
@@ -228,7 +230,7 @@ public:
 
 };
 
-template<elfflag width>
+template<pwnflag width>
 class symbol {
 public:
 	using sym_type = typename std::conditional<width == pwn::bit64, Elf64_Sym, Elf32_Sym>::type;
@@ -253,6 +255,10 @@ public:
 		section_name(parent_section.name),
 		name(name)
 	{}
+
+	std::string get_name() {
+		return name;
+	}
 
 	std::string get_type() {
 		std::string type;
@@ -308,17 +314,51 @@ public:
 		std::string indexstr(std::to_string(index));
 
 		switch (index) {
-			case SHN_ABS:    indexstr = "ABS";             break;
-			case SHN_COMMON: indexstr = "COM";             break;
-			case SHN_UNDEF:  indexstr = "UND";             break;
-			case SHN_XINDEX: indexstr = "COM";             break;
+			case SHN_ABS:    indexstr = "ABS";    break;
+			case SHN_COMMON: indexstr = "COM";    break;
+			case SHN_UNDEF:  indexstr = "UND";    break;
+			case SHN_XINDEX: indexstr = "COM";    break;
 		}
 
 		return indexstr;
 	}
+
+	size_type<width> get_value() {
+		return value;
+	}
+
+
+	bool is_function() {
+		return ELF32_ST_TYPE(info) == 2;
+	}
 };
 
-template<elfflag width>
+template<pwnflag width>
+class function : public symbol<width> {
+private:
+	std::uint8_t *mapped;
+public:
+	function() : symbol<width>(), mapped(nullptr) {}
+	function(symbol<width> &s) : symbol<width>(s), mapped(nullptr) {}
+
+	void set_base(std::uint8_t *base) {
+		mapped = base;
+	}
+
+	std::uint8_t *get_address() {
+		return mapped + symbol<width>::get_value();
+	}
+
+	/* Incomplete */
+	template<typename function_type, typename ...Args>
+	auto call(Args ...arglist) {
+		if (mapped == nullptr)
+			throw std::runtime_error(pwn::format("Function {} could not be called as the base address has not been initialized", symbol<width>::get_name()));
+		return (reinterpret_cast<function_type *>(get_address()))(std::forward<Args>(arglist) ...);
+	}
+};
+
+template<pwnflag width>
 class relocation {
 public:
 	using Rela_type = typename std::conditional<width == pwn::bit64, Elf64_Rela, Elf32_Rela>::type;
@@ -418,7 +458,7 @@ public:
 	}
 };
 
-template<elfflag width = pwn::bit64>
+template<pwnflag width = pwn::bit64>
 class elf {
 public:
 	using Eheader_type = typename std::conditional<width == pwn::bit64, Elf64_Ehdr, Elf32_Ehdr>::type;
@@ -427,14 +467,15 @@ public:
 
 	std::string path;
 	std::uint8_t *mapped;
+	std::size_t mmap_size;
+
+	std::size_t relative_base;
 
 	/* parts of the binary */
 	std::vector<section<width>> sections;
 	std::vector<segment<width>> segments;
 	std::vector<symbol<width>> symbols;
 	std::vector<relocation<width>> relocations;
-
-	std::size_t mmap_size;
 
 private:
 	void setup_sections() {
@@ -490,7 +531,9 @@ private:
 				sym_type symbol_data = reinterpret_cast<sym_type *>(mapped + section.offset)[i];
 				symbol_name = std::string(strtab_p + symbol_data.st_name);
 
-				symbols.emplace_back(symbol<width>(symbol_data, section, symbol_name));
+				symbol<width> symbol(symbol_data, section, symbol_name);
+
+				symbols.emplace_back(symbol);
 			}
 		}
 	}
@@ -527,7 +570,7 @@ private:
 
 public:
 	elf() {}
-	elf(std::string path): path(path) {
+	elf(std::string path): path(path), relative_base(0) {
 		std::pair<std::uint8_t *, std::size_t> p = detail::map_file(path);
 		mapped = p.first;
 		mmap_size = p.second;
@@ -538,7 +581,7 @@ public:
 		load(mapped);
 	}
 
-	elf(std::uint8_t *mapped): mapped(mapped), mmap_size(0) {}
+	elf(std::uint8_t *mapped): mapped(mapped), mmap_size(0), relative_base(0) {}
 
 	~elf() {
 		if (mmap_size)
@@ -559,117 +602,75 @@ public:
 		setup_relocations();
 	}
 
-	section<width> get_section(std::string name) {
+	section<width>& get_section(std::string name) {
 		for (auto &section : sections) {
 			if (section.name == name)
 				return section;
 		}
 
-		return section<width>();
+		throw std::runtime_error(pwn::format("Could not find a section with name {}", name));
 	}
 
-	std::vector<section<width>> get_sections() {
+	std::vector<section<width>>& get_sections() {
 		return sections;
 	}
 
-	std::vector<segment<width>> get_segments() {
+	std::vector<segment<width>>& get_segments() {
 		return segments;
 	}
 	
-	std::vector<symbol<width>> get_symbols() {
+	std::vector<symbol<width>>& get_symbols() {
 		return symbols;
 	}
 	
-	std::vector<relocation<width>> get_relocations() {
+	std::vector<relocation<width>>& get_relocations() {
 		return relocations;
 	}
 
-	symbol<width> get_symbol(std::string name) {
+	symbol<width>& get_symbol(std::string name) {
 		for (auto& symbol : symbols) {
 			if (symbol.name == name)
 				return symbol;
 		}
 
-		return symbol<width>();
+		throw std::runtime_error(pwn::format("Could not find a symbol with name {}", name));
 	}
 
-};
+	function<width> get_function(std::string name) {
+		for (auto& sym : symbols) {
+			if (!sym.is_function())
+				continue;
+			std::cout << sym.get_name() << std::endl;
 
+			if (sym.get_name() == name) {
+				function<width> fun(sym);
+				fun.set_base(mapped);
 
-/*
-	dynamic elf class, use only if you are not aware of the width beforehand.
-	This will possibly be implemented in the future.
-*/
-/*
-class DynElf {
-private:
-	union delf {
-		elf<pwn::bit32> elf32;
-		elf<pwn::bit64> elf64;
-	} adelf;
-
-	elfflag width;
-public:
-	union Section {
-		section<pwn::bit32> section32;
-		section<pwn::bit64> section64;
-	};
-
-	union Segment {
-		segment<pwn::bit32> segment32;
-		segment<pwn::bit64> section64;
-	};
-
-	union Section {
-		symbol<pwn::bit32> section32;
-		symbol<pwn::bit64> section64;
-	};
-
-	union Section {
-		relocation<pwn::bit32> section32;
-		relocation<pwn::bit64> section64;
-	};
-
-	elfflag get_width() {
-		return width;
-	}
-
-	DynElf() {}
-	DynElf(std::string path) {
-		std::uint8_t *mapped = detail::map_file(path);
-
-		width = detail::get_width(mapped);
-
-		if (!detail::is_elf(mapped) || (width == pwn::invalid))
-			throw std::runtime_error(pwn::format("Provided path {} does not point to an elf file.", path));
-	
-		if (width == pwn::bit64) {
-			adelf.elf64 = elf<pwn::bit64>(mapped);
-			adelf.elf64.load();
+				return fun;
+			}
 		}
-		else {
-			adelf.elf32 = elf<pwn::bit32>(mapped);
-			adelf.elf32.load();
-		}
+
+		throw std::runtime_error(pwn::format("Could not find a function with name {}", name));
 	}
 
-	std::vector<section<width>> *get_sections() {
-		return sections;
+	std::size_t get_address(std::size_t offset) {
+		if (relative_base)
+			return relative_base + offset;
+		return offset;
 	}
 
-	std::vector<segment<width>> *segments() {
-		return segments;
-	}
-	
-	std::vector<symbol<width>> *symbols() {
-		return symbols;
-	}
-	
-	std::vector<relocation<width>> *relocations() {
-		return relocations;
+	void set_base(std::size_t base) {
+		for (auto &elm : sections)
+			elm.set_relative_address(base);
+		for (auto &elm : segments)
+			elm.set_relative_address(base);
+		for (auto &elm : symbols)
+			elm.set_relative_address(base);
+		for (auto &elm : relocations)
+			elm.set_relative_address(base);
+		
+		relative_base = base;
 	}
 };
-*/
-
 
 }

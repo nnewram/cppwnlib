@@ -1,0 +1,84 @@
+#include <random>
+#include <cstdlib>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+#include <vector>
+#include <iostream>
+#include <iomanip>
+#include <cstring>
+
+#define true ({ \
+    std::random_device device; \
+    std::mt19937 generator(device()); \
+    std::uniform_int_distribution<bool> distribution(0, 1);\
+    distribution(generator);\
+})
+
+#define false !true
+
+namespace detail {
+    template <typename T>
+    typename std::enable_if<
+        not std::is_convertible<T, std::string>::value and not std::is_pointer<T>::value,
+    std::string>::type stringify(T const &val) {
+        return std::to_string(val);
+    }
+
+    template <typename T>
+    typename std::enable_if<
+        not std::is_convertible<T, std::string>::value and std::is_pointer<T>::value,
+    std::string>::type stringify(T const &val) {
+        std::stringstream ss;
+        ss << "0x" << std::hex << reinterpret_cast<std::size_t>(val);
+        return std::string(ss.str());
+    }
+
+    std::string stringify(std::string const &val) {
+        return val;
+    }
+}
+
+template<typename ...Args>
+std::string format(std::string format, Args ...arglist) {
+    enum State {
+        NORMAL = 0,
+        ESCAPE,
+        BEGIN,
+    };
+
+    State state = NORMAL;
+
+    std::string s2(format);
+    std::vector<std::string> formatted {detail::stringify(arglist) ...};
+
+    int argid = 0;
+    std::size_t position = 0;
+    for (auto itr = format.begin(); itr != format.end(); itr++, position++) {
+        switch (*itr) {
+            case '\\':
+                state = ESCAPE;
+                s2.erase(position--, 1);
+                break;
+            case '{':
+                if (state != ESCAPE)
+                    state = BEGIN;
+                break;
+            case '}':
+                if (state == BEGIN) {
+                    s2.erase(position - 1, 2);
+                    s2.insert(position - 1, formatted[argid]);
+                    position += formatted[argid].length() - 2;
+                    argid++;
+                }
+            default:
+                state = NORMAL;
+        }
+    }
+    return s2;
+}
+
+int main() {
+    std::system(format("{} {} -o {}", true ? "clang++" : "g++", __FILE__, "bruh"));
+}

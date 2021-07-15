@@ -1,0 +1,7 @@
+170832 execve("./a.out", ["./a.out"], 0x7ffffdde68d0 /* 32 vars */) = 0
+170832 pipe([3, 4])                     = 0
+170832 pipe([5, 6])                     = 0
+170833 dup2(3, 0)                       = 0
+170833 dup2(6, 1)                       = 1
+170833 execve("/home/nnew/programming/cppwnlib/examples/example_process", ["/home/nnew/programming/cppwnlib/"...], 0x7ffe61142cf8 /* 32 vars */ <detached ...>
+170832 +++ exited with 0 +++

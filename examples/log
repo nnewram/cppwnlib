@@ -1,0 +1,8 @@
+176767 execve("./a.out", ["./a.out"], 0x7ffefbd40320 /* 32 vars */) = 0
+176767 pipe([3, 4])                     = 0
+176767 pipe([5, 6])                     = 0
+176768 dup2(3, 0)                       = 0
+176768 dup2(6, 1)                       = 1
+176768 execve("/home/nnew/programming/cppwnlib/examples/example_process", ["/home/nnew/programming/cppwnlib/"...], 0x7ffd42dbef48 /* 32 vars */ <detached ...>
+176767 --- SIGINT {si_signo=SIGINT, si_code=SI_KERNEL} ---
+176767 +++ killed by SIGINT +++

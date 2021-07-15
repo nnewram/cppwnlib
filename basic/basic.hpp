@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <iomanip>
 #include <cstring>
 
 #include <cxxabi.h>
@@ -14,9 +15,18 @@ namespace pwn {
 namespace detail {
 	template <typename T>
 	typename std::enable_if<
-		not std::is_convertible<T, std::string>::value,
+		not std::is_convertible<T, std::string>::value and not std::is_pointer<T>::value,
 	std::string>::type stringify(T const &val) {
 		return std::to_string(val);
+	}
+
+	template <typename T>
+	typename std::enable_if<
+		not std::is_convertible<T, std::string>::value and std::is_pointer<T>::value,
+	std::string>::type stringify(T const &val) {
+		std::stringstream ss;
+		ss << "0x" << std::hex << reinterpret_cast<std::size_t>(val);
+		return std::string(ss.str());
 	}
 
 	std::string stringify(std::string const &val) {
